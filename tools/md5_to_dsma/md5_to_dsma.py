@@ -60,6 +60,20 @@ def quaternion_fill_incomplete_w(v):
         w = -sqrt(t)
     return Quaternion(w, v[0], v[1], v[2])
 
+def make_quaternions_continuous(frames):
+    """
+    This normalizes quaternions across frames: if the dot-product between
+    two neighboring frame's quaternions is negative, it indicates a sign-flip between
+    the two quaternions that can cause animation jumpiness when interpolating.
+    This normalizes those sign changes, resulting in smooth animations even on skip-frames.
+    """
+    for previous, current in zip(frames, frames[1:]):
+        for i, (a, b) in enumerate(zip(previous, current)):
+            q1, q2 = a.orient, b.orient
+            if q1.w * q2.w + q1.x * q2.x + q1.y * q2.y + q1.z * q2.z < 0:
+                current[i] = b._replace(orient=Quaternion(-q2.w, -q2.x, -q2.y, -q2.z))
+    return frames
+
 class Vector():
     def __init__(self, x, y, z):
         self.x = x
@@ -784,6 +798,7 @@ def convert_md5anim(name, output_folder, anim_file, skip_frames, extension_anim,
     anim_name = file_basename.replace(".", "_").lower()
 
     frames = frames[::skip_frames+1]
+    frames = make_quaternions_continuous(frames)
     save_animation(frames, os.path.join(output_folder,
                    f"{name}_{anim_name}{extension_anim}"), blender_fix)
 
